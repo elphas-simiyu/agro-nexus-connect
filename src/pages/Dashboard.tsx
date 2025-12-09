@@ -1,5 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { Chatbot } from "@/components/Chatbot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,76 +24,7 @@ import {
   ArrowUpRight,
   Leaf
 } from "lucide-react";
-
-const stats = [
-  {
-    title: "Total Revenue",
-    value: "KES 245,000",
-    change: "+12.5%",
-    trend: "up",
-    icon: DollarSign,
-    color: "bg-leaf",
-  },
-  {
-    title: "Active Orders",
-    value: "23",
-    change: "+3",
-    trend: "up",
-    icon: ShoppingCart,
-    color: "bg-secondary",
-  },
-  {
-    title: "Products Listed",
-    value: "18",
-    change: "-2",
-    trend: "down",
-    icon: Package,
-    color: "bg-primary",
-  },
-  {
-    title: "Total Buyers",
-    value: "156",
-    change: "+28",
-    trend: "up",
-    icon: Users,
-    color: "bg-harvest",
-  },
-];
-
-const recentOrders = [
-  {
-    id: "ORD-001",
-    buyer: "Nairobi Fresh Market",
-    product: "Tomatoes",
-    quantity: "200kg",
-    amount: "KES 24,000",
-    status: "pending",
-  },
-  {
-    id: "ORD-002",
-    buyer: "Green Grocers Ltd",
-    product: "Avocados",
-    quantity: "150kg",
-    amount: "KES 12,000",
-    status: "shipped",
-  },
-  {
-    id: "ORD-003",
-    buyer: "Safari Restaurant",
-    product: "Green Beans",
-    quantity: "50kg",
-    amount: "KES 7,500",
-    status: "delivered",
-  },
-  {
-    id: "ORD-004",
-    buyer: "City Supermarket",
-    product: "Maize",
-    quantity: "500kg",
-    amount: "KES 22,500",
-    status: "pending",
-  },
-];
+import dashboardService from "@/services/dashboard";
 
 const upcomingTasks = [
   { task: "Harvest tomatoes - Plot A", date: "Tomorrow", priority: "high" },
@@ -101,6 +34,9 @@ const upcomingTasks = [
 ];
 
 const Dashboard = () => {
+  const { data: statsData = [] } = useQuery({ queryKey: ["dashboard", "stats"], queryFn: dashboardService.getDashboardStats });
+  const { data: recent = [] } = useQuery({ queryKey: ["dashboard", "recentOrders"], queryFn: dashboardService.getRecentOrders });
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -132,26 +68,26 @@ const Dashboard = () => {
 
           {/* Stats Grid */}
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {stats.map((stat, i) => (
-              <Card key={i} variant="gradient">
+            {statsData.map((s: any, idx: number) => (
+              <Card key={idx} variant="gradient">
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
-                    <div className={`w-12 h-12 rounded-xl ${stat.color} flex items-center justify-center`}>
-                      <stat.icon className="w-6 h-6 text-primary-foreground" />
+                    <div className={`w-12 h-12 rounded-xl ${s.color} flex items-center justify-center`}>
+                      <s.icon className="w-6 h-6 text-primary-foreground" />
                     </div>
                     <div className={`flex items-center gap-1 text-sm font-semibold ${
-                      stat.trend === "up" ? "text-leaf" : "text-destructive"
+                      s.trend === "up" ? "text-leaf" : "text-destructive"
                     }`}>
-                      {stat.trend === "up" ? (
+                      {s.trend === "up" ? (
                         <TrendingUp className="w-4 h-4" />
                       ) : (
                         <TrendingDown className="w-4 h-4" />
                       )}
-                      {stat.change}
+                      {s.change}
                     </div>
                   </div>
-                  <h3 className="text-muted-foreground text-sm mb-1">{stat.title}</h3>
-                  <p className="font-display font-bold text-2xl">{stat.value}</p>
+                  <h3 className="text-muted-foreground text-sm mb-1">{s.title}</h3>
+                  <p className="font-display font-bold text-2xl">{s.value}</p>
                 </CardContent>
               </Card>
             ))}
@@ -208,24 +144,24 @@ const Dashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {recentOrders.map((order) => (
-                          <tr key={order.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                            <td className="py-3 px-2 font-mono text-sm">{order.id}</td>
-                            <td className="py-3 px-2 text-sm">{order.buyer}</td>
-                            <td className="py-3 px-2 text-sm">{order.product}</td>
-                            <td className="py-3 px-2 text-sm">{order.quantity}</td>
-                            <td className="py-3 px-2 text-sm font-semibold">{order.amount}</td>
+                        {recent.map((o: any) => (
+                          <tr key={o.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                            <td className="py-3 px-2 font-mono text-sm">{o.id}</td>
+                            <td className="py-3 px-2 text-sm">{o.buyer}</td>
+                            <td className="py-3 px-2 text-sm">{o.product}</td>
+                            <td className="py-3 px-2 text-sm">{o.quantity}</td>
+                            <td className="py-3 px-2 text-sm font-semibold">{o.amount}</td>
                             <td className="py-3 px-2">
                               <Badge
                                 variant={
-                                  order.status === "delivered"
+                                  o.status === "delivered"
                                     ? "success"
-                                    : order.status === "shipped"
+                                    : o.status === "shipped"
                                     ? "info"
                                     : "warning"
                                 }
                               >
-                                {order.status}
+                                {o.status}
                               </Badge>
                             </td>
                           </tr>
@@ -335,6 +271,7 @@ const Dashboard = () => {
         </div>
       </main>
       <Footer />
+      <Chatbot userType="farmer" location="Kenya" />
     </div>
   );
 };

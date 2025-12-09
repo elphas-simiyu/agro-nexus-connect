@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { Chatbot } from "@/components/Chatbot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,128 +17,16 @@ import {
   ChevronDown
 } from "lucide-react";
 
-const categories = [
-  { id: "all", name: "All Products", count: 1250 },
-  { id: "vegetables", name: "Vegetables", count: 420 },
-  { id: "fruits", name: "Fruits", count: 380 },
-  { id: "grains", name: "Grains", count: 215 },
-  { id: "dairy", name: "Dairy", count: 89 },
-  { id: "poultry", name: "Poultry", count: 146 },
-];
+import { useQuery } from "@tanstack/react-query";
+import productsService, { Product } from "@/services/products";
 
-const products = [
-  {
-    id: 1,
-    name: "Fresh Organic Tomatoes",
-    farmer: "John Mwangi",
-    location: "Kiambu, Kenya",
-    price: 120,
-    unit: "kg",
-    rating: 4.8,
-    reviews: 156,
-    image: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400&h=300&fit=crop",
-    category: "Vegetables",
-    available: "500kg",
-    organic: true,
-  },
-  {
-    id: 2,
-    name: "Grade A Maize",
-    farmer: "Mary Wanjiku",
-    location: "Nakuru, Kenya",
-    price: 45,
-    unit: "kg",
-    rating: 4.9,
-    reviews: 243,
-    image: "https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=400&h=300&fit=crop",
-    category: "Grains",
-    available: "2,000kg",
-    organic: false,
-  },
-  {
-    id: 3,
-    name: "Fresh Avocados",
-    farmer: "Peter Ochieng",
-    location: "Murang'a, Kenya",
-    price: 80,
-    unit: "kg",
-    rating: 4.7,
-    reviews: 89,
-    image: "https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=400&h=300&fit=crop",
-    category: "Fruits",
-    available: "800kg",
-    organic: true,
-  },
-  {
-    id: 4,
-    name: "Organic Green Beans",
-    farmer: "Grace Akinyi",
-    location: "Meru, Kenya",
-    price: 150,
-    unit: "kg",
-    rating: 4.6,
-    reviews: 67,
-    image: "https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?w=400&h=300&fit=crop",
-    category: "Vegetables",
-    available: "300kg",
-    organic: true,
-  },
-  {
-    id: 5,
-    name: "Fresh Mangoes",
-    farmer: "Samuel Kimani",
-    location: "Machakos, Kenya",
-    price: 95,
-    unit: "kg",
-    rating: 4.9,
-    reviews: 178,
-    image: "https://images.unsplash.com/photo-1553279768-865429fa0078?w=400&h=300&fit=crop",
-    category: "Fruits",
-    available: "1,200kg",
-    organic: false,
-  },
-  {
-    id: 6,
-    name: "Premium Rice",
-    farmer: "Elizabeth Njeri",
-    location: "Mwea, Kenya",
-    price: 180,
-    unit: "kg",
-    rating: 4.8,
-    reviews: 312,
-    image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=300&fit=crop",
-    category: "Grains",
-    available: "5,000kg",
-    organic: false,
-  },
-  {
-    id: 7,
-    name: "Fresh Eggs",
-    farmer: "David Omondi",
-    location: "Kisumu, Kenya",
-    price: 15,
-    unit: "piece",
-    rating: 4.7,
-    reviews: 445,
-    image: "https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=400&h=300&fit=crop",
-    category: "Poultry",
-    available: "10,000 pieces",
-    organic: true,
-  },
-  {
-    id: 8,
-    name: "Fresh Milk",
-    farmer: "Anne Chebet",
-    location: "Eldoret, Kenya",
-    price: 60,
-    unit: "litre",
-    rating: 4.9,
-    reviews: 523,
-    image: "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&h=300&fit=crop",
-    category: "Dairy",
-    available: "500 litres",
-    organic: true,
-  },
+const categories = [
+  { id: "all", name: "All Products", count: 0 },
+  { id: "vegetables", name: "Vegetables", count: 0 },
+  { id: "fruits", name: "Fruits", count: 0 },
+  { id: "grains", name: "Grains", count: 0 },
+  { id: "dairy", name: "Dairy", count: 0 },
+  { id: "poultry", name: "Poultry", count: 0 },
 ];
 
 const Marketplace = () => {
@@ -145,10 +34,16 @@ const Marketplace = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const { data: products = [], isLoading } = useQuery<Product[]>({
+    queryKey: ["products", activeCategory, searchQuery],
+    queryFn: () => productsService.getProducts({ category: activeCategory === "all" ? undefined : activeCategory, q: searchQuery }),
+    keepPreviousData: true,
+  });
+
   const filteredProducts = products.filter((product) => {
-    const matchesCategory = activeCategory === "all" || product.category.toLowerCase() === activeCategory;
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.farmer.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = activeCategory === "all" || (product.category || "").toLowerCase() === activeCategory;
+    const matchesSearch = searchQuery === "" || product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (product.farmer || "").toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -355,6 +250,7 @@ const Marketplace = () => {
         </div>
       </main>
       <Footer />
+      <Chatbot userType="buyer" location="Kenya" />
     </div>
   );
 };
