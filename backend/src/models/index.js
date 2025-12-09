@@ -5,6 +5,7 @@ import Order from './Order.js';
 import OrderItem from './OrderItem.js';
 import Review from './Review.js';
 import Category from './Category.js';
+import Task from './Task.js';
 
 // User relationships
 User.hasOne(Farmer, { foreignKey: 'user_id', onDelete: 'CASCADE' });
@@ -32,4 +33,8 @@ Review.belongsTo(Product, { foreignKey: 'product_id' });
 User.hasMany(Review, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 Review.belongsTo(User, { foreignKey: 'user_id' });
 
-export { User, Farmer, Product, Order, OrderItem, Review, Category };
+// Task relationships
+Farmer.hasMany(Task, { foreignKey: 'farmer_id', onDelete: 'CASCADE' });
+Task.belongsTo(Farmer, { foreignKey: 'farmer_id' });
+
+export { User, Farmer, Product, Order, OrderItem, Review, Category, Task };
