@@ -45,6 +45,10 @@ const Dashboard = () => {
   // Weather state
   const [weather, setWeather] = useState<any>(null);
 
+  // New task form state
+  const [newTask, setNewTask] = useState({ title: "", description: "", due_date: "", priority: "medium" });
+  const [showTaskForm, setShowTaskForm] = useState(false);
+
   // Tasks (only available to authenticated farmers)
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ["tasks"],
@@ -70,16 +74,25 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        if (isAuth) {
+        if (isAuth && user) {
           // try geolocation first
           try {
             const coords = await weatherService.getCurrentLocation();
             const w = await weatherService.getWeatherByCoords(coords.latitude, coords.longitude);
             setWeather(w);
           } catch (err) {
-            // fallback to city search by user profile (not available) or country
-            const w = await weatherService.getWeatherByCity('Nairobi');
-            setWeather(w);
+            // fallback to user location from profile (e.g. "Kiambu, Kenya" -> "Kiambu")
+            // Extract city name if format is "City, Country"
+            const userLocation = user?.location || 'Kenya';
+            const city = userLocation.includes(',') ? userLocation.split(',')[0].trim() : userLocation;
+            try {
+              const w = await weatherService.getWeatherByCity(city);
+              setWeather(w);
+            } catch (err2) {
+              // final fallback to country-level search
+              const w = await weatherService.getWeatherByCity('Kenya');
+              setWeather(w);
+            }
           }
         }
       } catch (error) {
@@ -283,12 +296,65 @@ const Dashboard = () => {
                     <Calendar className="w-5 h-5 text-primary" />
                     Upcoming Tasks
                   </CardTitle>
-                  <Button variant="ghost" size="sm">
-                    <Plus className="w-4 h-4" />
-                  </Button>
+                  {isAuth && (
+                    <Button variant="ghost" size="sm" onClick={() => setShowTaskForm(!showTaskForm)}>
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
+                    {isAuth && showTaskForm && (
+                      <div className="p-4 rounded-xl bg-muted/50 border border-border space-y-2 mb-4">
+                        <input
+                          type="text"
+                          placeholder="Task title"
+                          value={newTask.title}
+                          onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Description (optional)"
+                          value={newTask.description}
+                          onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <input
+                          type="date"
+                          value={newTask.due_date}
+                          onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <select
+                          value={newTask.priority}
+                          onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          <option value="low">Low Priority</option>
+                          <option value="medium">Medium Priority</option>
+                          <option value="high">High Priority</option>
+                        </select>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="hero"
+                            onClick={() => {
+                              createTaskMutation.mutate(newTask);
+                              setNewTask({ title: "", description: "", due_date: "", priority: "medium" });
+                              setShowTaskForm(false);
+                            }}
+                            disabled={!newTask.title || createTaskMutation.isPending}
+                          >
+                            {createTaskMutation.isPending ? "Creating..." : "Create Task"}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setShowTaskForm(false)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     {!isAuth && (
                       <div className="text-sm text-muted-foreground">Please log in to view and manage your tasks.</div>
                     )}
