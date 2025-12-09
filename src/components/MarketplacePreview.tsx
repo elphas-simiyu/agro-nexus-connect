@@ -3,63 +3,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, MapPin, Star, ShoppingCart, Filter } from "lucide-react";
 import { Link } from "react-router-dom";
-
-const products = [
-  {
-    id: 1,
-    name: "Fresh Organic Tomatoes",
-    farmer: "John Mwangi",
-    location: "Kiambu, Kenya",
-    price: 120,
-    unit: "kg",
-    rating: 4.8,
-    reviews: 156,
-    image: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400&h=300&fit=crop",
-    category: "Vegetables",
-    available: "500kg",
-  },
-  {
-    id: 2,
-    name: "Grade A Maize",
-    farmer: "Mary Wanjiku",
-    location: "Nakuru, Kenya",
-    price: 45,
-    unit: "kg",
-    rating: 4.9,
-    reviews: 243,
-    image: "https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=400&h=300&fit=crop",
-    category: "Grains",
-    available: "2,000kg",
-  },
-  {
-    id: 3,
-    name: "Fresh Avocados",
-    farmer: "Peter Ochieng",
-    location: "Murang'a, Kenya",
-    price: 80,
-    unit: "kg",
-    rating: 4.7,
-    reviews: 89,
-    image: "https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=400&h=300&fit=crop",
-    category: "Fruits",
-    available: "800kg",
-  },
-  {
-    id: 4,
-    name: "Organic Green Beans",
-    farmer: "Grace Akinyi",
-    location: "Meru, Kenya",
-    price: 150,
-    unit: "kg",
-    rating: 4.6,
-    reviews: 67,
-    image: "https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?w=400&h=300&fit=crop",
-    category: "Vegetables",
-    available: "300kg",
-  },
-];
+import { useQuery } from "@tanstack/react-query";
+import productsService from "@/services/products";
 
 export function MarketplacePreview() {
+  const { data: products = [] } = useQuery({
+    queryKey: ["products", "preview"],
+    queryFn: () => productsService.getProducts({ limit: 4 }),
+  });
   return (
     <section className="py-24 bg-muted/30">
       <div className="container mx-auto px-4">

@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Leaf, ShoppingCart, BarChart3, User } from "lucide-react";
+import { Menu, X, Leaf, ShoppingCart, BarChart3, User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AuthModal } from "./AuthModal";
+import authService from "@/services/auth";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -13,7 +15,10 @@ const navLinks = [
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
   const location = useLocation();
+  const user = authService.getUser();
+  const isAuthenticated = authService.isAuthenticated();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
@@ -49,16 +54,49 @@ export function Navbar() {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" size="icon">
-              <ShoppingCart className="w-5 h-5" />
-            </Button>
-            <Button variant="outline" size="sm">
-              <User className="w-4 h-4 mr-2" />
-              Login
-            </Button>
-            <Button variant="hero" size="sm">
-              Get Started
-            </Button>
+            <Link to="/cart">
+              <Button variant="ghost" size="icon">
+                <ShoppingCart className="w-5 h-5" />
+              </Button>
+            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link to={user?.user_type === "farmer" ? "/dashboard" : "/marketplace"}>
+                  <Button variant="outline" size="sm">
+                    <User className="w-4 h-4 mr-2" />
+                    {user?.username}
+                  </Button>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    authService.logout();
+                    window.location.href = "/";
+                  }}
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAuthOpen(true)}
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Login
+                </Button>
+                <Button
+                  variant="hero"
+                  size="sm"
+                  onClick={() => setAuthOpen(true)}
+                >
+                  Get Started
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -90,17 +128,54 @@ export function Navbar() {
                 </Link>
               ))}
               <div className="flex gap-2 mt-4 px-4">
-                <Button variant="outline" className="flex-1">
-                  Login
-                </Button>
-                <Button variant="hero" className="flex-1">
-                  Get Started
-                </Button>
+                {isAuthenticated ? (
+                  <>
+                    <Link to={user?.user_type === "farmer" ? "/dashboard" : "/marketplace"} className="flex-1">
+                      <Button variant="outline" className="w-full">
+                        {user?.username}
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      className="flex-1"
+                      onClick={() => {
+                        authService.logout();
+                        window.location.href = "/";
+                      }}
+                    >
+                      Logout
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        setIsOpen(false);
+                        setAuthOpen(true);
+                      }}
+                    >
+                      Login
+                    </Button>
+                    <Button
+                      variant="hero"
+                      className="flex-1"
+                      onClick={() => {
+                        setIsOpen(false);
+                        setAuthOpen(true);
+                      }}
+                    >
+                      Get Started
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>
         )}
       </div>
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
     </header>
   );
 }
