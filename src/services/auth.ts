@@ -1,12 +1,19 @@
 import { api } from "./api";
 
 export interface User {
-  id: number;
+  id: string;
   username: string;
   email: string;
   user_type: "farmer" | "buyer";
   first_name?: string;
   last_name?: string;
+  location?: string;
+  farming_type?: string;
+  interests?: string[];
+  farm_size?: string;
+  phone?: string;
+  avatar?: string;
+  createdAt?: string;
 }
 
 export interface AuthResponse {
@@ -14,26 +21,31 @@ export interface AuthResponse {
   token: string;
 }
 
+interface RegisterData {
+  username: string;
+  email: string;
+  password: string;
+  user_type: "farmer" | "buyer";
+  first_name?: string;
+  last_name?: string;
+  location?: string;
+  farming_type?: string;
+  interests?: string[];
+  farm_size?: string;
+}
+
 class AuthService {
   private tokenKey = "agronexus_token";
   private userKey = "agronexus_user";
 
   /**
-   * Register new user
+   * Register new user with extended profile data
    */
-  async register(data: {
-    username: string;
-    email: string;
-    password: string;
-    user_type: "farmer" | "buyer";
-    first_name?: string;
-    last_name?: string;
-  }): Promise<AuthResponse> {
+  async register(data: RegisterData): Promise<AuthResponse> {
     try {
       const response = await api.post("/auth/register", data);
       const { token, user } = response.data;
       
-      // Store token and user
       this.setToken(token);
       this.setUser(user);
       
@@ -52,7 +64,6 @@ class AuthService {
       const response = await api.post("/auth/login", { email, password });
       const { token, user } = response.data;
       
-      // Store token and user
       this.setToken(token);
       this.setUser(user);
       
@@ -64,14 +75,31 @@ class AuthService {
   }
 
   /**
-   * Get current user
+   * Get current user profile
    */
   async getMe(): Promise<User> {
     try {
       const response = await api.get("/auth/me");
-      return response.data.user;
+      const user = response.data.user;
+      this.setUser(user);
+      return user;
     } catch (error) {
       console.error("Get user error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateProfile(data: Partial<User>): Promise<User> {
+    try {
+      const response = await api.put("/auth/profile", data);
+      const user = response.data.user;
+      this.setUser(user);
+      return user;
+    } catch (error) {
+      console.error("Update profile error:", error);
       throw error;
     }
   }
@@ -82,9 +110,9 @@ class AuthService {
   async logout(): Promise<void> {
     try {
       await api.post("/auth/logout");
-      this.clearAuth();
     } catch (error) {
       console.error("Logout error:", error);
+    } finally {
       this.clearAuth();
     }
   }

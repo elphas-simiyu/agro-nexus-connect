@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { Chatbot } from "@/components/Chatbot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,73 +23,80 @@ import {
   Settings,
   Calendar,
   ArrowUpRight,
-  Leaf
+  Leaf,
+  Lock
 } from "lucide-react";
 import dashboardService from "@/services/dashboard";
 import weatherService from "@/services/weather";
 import tasksService from "@/services/tasks";
-import authService from "@/services/auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { AuthModal } from "@/components/AuthModal";
 
-
-
 const Dashboard = () => {
-  const { data: statsData = [] } = useQuery({ queryKey: ["dashboard", "stats"], queryFn: dashboardService.getDashboardStats });
-  const { data: recent = [] } = useQuery({ queryKey: ["dashboard", "recentOrders"], queryFn: dashboardService.getRecentOrders });
-
-  const queryClient = useQueryClient();
-  const isAuth = authService.isAuthenticated();
-  const user = authService.getUser();
+  const navigate = useNavigate();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
-
-  // Weather state
   const [weather, setWeather] = useState<any>(null);
-
-  // New task form state
   const [newTask, setNewTask] = useState({ title: "", description: "", due_date: "", priority: "medium" });
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const queryClient = useQueryClient();
 
-  // Tasks (only available to authenticated farmers)
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      // Show auth modal instead of redirecting
+    }
+  }, [authLoading, isAuthenticated]);
+
+  // Fetch dashboard data only when authenticated
+  const { data: statsData = [] } = useQuery({ 
+    queryKey: ["dashboard", "stats"], 
+    queryFn: dashboardService.getDashboardStats,
+    enabled: isAuthenticated
+  });
+
+  const { data: recent = [] } = useQuery({ 
+    queryKey: ["dashboard", "recentOrders"], 
+    queryFn: dashboardService.getRecentOrders,
+    enabled: isAuthenticated
+  });
+
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ["tasks"],
     queryFn: () => tasksService.getTasks(),
-    enabled: isAuth,
+    enabled: isAuthenticated,
   });
 
   const createTaskMutation = useMutation({
     mutationFn: (payload: any) => tasksService.createTask(payload),
-    onSuccess: () => queryClient.invalidateQueries(["tasks"]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, payload }: any) => tasksService.updateTask(id, payload),
-    onSuccess: () => queryClient.invalidateQueries(["tasks"]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
   const deleteTaskMutation = useMutation({
     mutationFn: (id: number) => tasksService.deleteTask(id),
-    onSuccess: () => queryClient.invalidateQueries(["tasks"]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        if (isAuth && user) {
-          // try geolocation first
+        if (isAuthenticated && user) {
           try {
             const coords = await weatherService.getCurrentLocation();
             const w = await weatherService.getWeatherByCoords(coords.latitude, coords.longitude);
             setWeather(w);
           } catch (err) {
-            // fallback to user location from profile (e.g. "Kiambu, Kenya" -> "Kiambu")
-            // Extract city name if format is "City, Country"
             const userLocation = user?.location || 'Kenya';
             const city = userLocation.includes(',') ? userLocation.split(',')[0].trim() : userLocation;
             try {
               const w = await weatherService.getWeatherByCity(city);
               setWeather(w);
             } catch (err2) {
-              // final fallback to country-level search
               const w = await weatherService.getWeatherByCity('Kenya');
               setWeather(w);
             }
@@ -101,7 +108,32 @@ const Dashboard = () => {
     };
 
     fetchWeather();
-  }, [isAuth]);
+  }, [isAuthenticated, user]);
+
+  // Show login required state
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="pt-20">
+          <div className="container mx-auto px-4 py-20">
+            <Card variant="elevated" className="max-w-md mx-auto text-center p-8">
+              <Lock className="w-16 h-16 mx-auto text-muted-foreground mb-6" />
+              <h1 className="font-display font-bold text-2xl mb-4">Dashboard Access Required</h1>
+              <p className="text-muted-foreground mb-6">
+                Please sign in to access your personalized dashboard, manage your farm, and view insights.
+              </p>
+              <Button variant="hero" size="lg" onClick={() => setAuthOpen(true)}>
+                Sign In to Continue
+              </Button>
+            </Card>
+          </div>
+        </main>
+        <Footer />
+        <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -112,35 +144,26 @@ const Dashboard = () => {
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
             <div>
               <h1 className="font-display font-bold text-3xl mb-2">
-                {isAuth && user ? (
-                  <>Welcome back, {user.first_name ?? user.username}! 👋</>
-                ) : (
-                  <>Welcome to AgroNexus 👋</>
-                )}
+                Welcome back, {user?.first_name ?? user?.username}! 👋
               </h1>
               <p className="text-muted-foreground">
-                {isAuth ? "Here's what's happening with your farm today." : "Sign in to view your dashboard and tasks."}
+                Here's what's happening with your farm today.
               </p>
             </div>
             <div className="flex items-center gap-3">
-              {!isAuth ? (
-                <Button variant="hero" onClick={() => setAuthOpen(true)}>
-                  Sign In
-                </Button>
-              ) : (
-                <>
-                  <Button variant="outline" size="icon">
-                    <Bell className="w-5 h-5" />
-                  </Button>
-                  <Button variant="outline" size="icon">
-                    <Settings className="w-5 h-5" />
-                  </Button>
-                  <Button variant="hero">
-                    <Plus className="w-5 h-5 mr-2" />
-                    Add Product
-                  </Button>
-                </>
-              )}
+              <Button variant="outline" size="icon" onClick={() => navigate("/insights")}>
+                <Leaf className="w-5 h-5" />
+              </Button>
+              <Button variant="outline" size="icon">
+                <Bell className="w-5 h-5" />
+              </Button>
+              <Button variant="outline" size="icon">
+                <Settings className="w-5 h-5" />
+              </Button>
+              <Button variant="hero">
+                <Plus className="w-5 h-5 mr-2" />
+                Add Product
+              </Button>
             </div>
           </div>
 
@@ -190,7 +213,7 @@ const Dashboard = () => {
                     <div className="text-center">
                       <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                       <p className="text-muted-foreground">Revenue chart visualization</p>
-                      <p className="text-sm text-muted-foreground">Coming soon with real data</p>
+                      <p className="text-sm text-muted-foreground">Connect your sales data to view charts</p>
                     </div>
                   </div>
                 </CardContent>
@@ -209,44 +232,51 @@ const Dashboard = () => {
                   </Button>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Order ID</th>
-                          <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Buyer</th>
-                          <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Product</th>
-                          <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Quantity</th>
-                          <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Amount</th>
-                          <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recent.map((o: any) => (
-                          <tr key={o.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                            <td className="py-3 px-2 font-mono text-sm">{o.id}</td>
-                            <td className="py-3 px-2 text-sm">{o.buyer}</td>
-                            <td className="py-3 px-2 text-sm">{o.product}</td>
-                            <td className="py-3 px-2 text-sm">{o.quantity}</td>
-                            <td className="py-3 px-2 text-sm font-semibold">{o.amount}</td>
-                            <td className="py-3 px-2">
-                              <Badge
-                                variant={
-                                  o.status === "delivered"
-                                    ? "success"
-                                    : o.status === "shipped"
-                                    ? "info"
-                                    : "warning"
-                                }
-                              >
-                                {o.status}
-                              </Badge>
-                            </td>
+                  {recent.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <ShoppingCart className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>No orders yet. Start selling to see orders here.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Order ID</th>
+                            <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Buyer</th>
+                            <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Product</th>
+                            <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Quantity</th>
+                            <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Amount</th>
+                            <th className="text-left py-3 px-2 text-sm font-semibold text-muted-foreground">Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {recent.map((o: any) => (
+                            <tr key={o.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                              <td className="py-3 px-2 font-mono text-sm">{o.id}</td>
+                              <td className="py-3 px-2 text-sm">{o.buyer}</td>
+                              <td className="py-3 px-2 text-sm">{o.product}</td>
+                              <td className="py-3 px-2 text-sm">{o.quantity}</td>
+                              <td className="py-3 px-2 text-sm font-semibold">{o.amount}</td>
+                              <td className="py-3 px-2">
+                                <Badge
+                                  variant={
+                                    o.status === "delivered"
+                                      ? "success"
+                                      : o.status === "shipped"
+                                      ? "info"
+                                      : "warning"
+                                  }
+                                >
+                                  {o.status}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -265,7 +295,7 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between mb-6">
                     <div>
                       <p className="font-display font-bold text-4xl">{weather ? `${weather.temperature}°C` : '—'}</p>
-                      <p className="text-muted-foreground">{weather ? weather.condition : 'Sign in to view weather'}</p>
+                      <p className="text-muted-foreground">{weather ? weather.condition : 'Loading...'}</p>
                     </div>
                     <Sun className="w-16 h-16 text-harvest" />
                   </div>
@@ -289,6 +319,26 @@ const Dashboard = () => {
                 </CardContent>
               </Card>
 
+              {/* Quick Actions */}
+              <Card variant="elevated">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Leaf className="w-5 h-5 text-primary" />
+                    Quick Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button variant="outline" className="w-full justify-start" onClick={() => navigate("/insights")}>
+                    <Leaf className="w-4 h-4 mr-2" />
+                    View Farming Insights
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" onClick={() => navigate("/marketplace")}>
+                    <Package className="w-4 h-4 mr-2" />
+                    Browse Marketplace
+                  </Button>
+                </CardContent>
+              </Card>
+
               {/* Upcoming Tasks */}
               <Card variant="elevated">
                 <CardHeader className="flex flex-row items-center justify-between">
@@ -296,15 +346,13 @@ const Dashboard = () => {
                     <Calendar className="w-5 h-5 text-primary" />
                     Upcoming Tasks
                   </CardTitle>
-                  {isAuth && (
-                    <Button variant="ghost" size="sm" onClick={() => setShowTaskForm(!showTaskForm)}>
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  )}
+                  <Button variant="ghost" size="sm" onClick={() => setShowTaskForm(!showTaskForm)}>
+                    <Plus className="w-4 h-4" />
+                  </Button>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {isAuth && showTaskForm && (
+                    {showTaskForm && (
                       <div className="p-4 rounded-xl bg-muted/50 border border-border space-y-2 mb-4">
                         <input
                           type="text"
@@ -355,19 +403,15 @@ const Dashboard = () => {
                       </div>
                     )}
 
-                    {!isAuth && (
-                      <div className="text-sm text-muted-foreground">Please log in to view and manage your tasks.</div>
-                    )}
-
-                    {isAuth && tasksLoading && (
+                    {tasksLoading && (
                       <div className="text-sm text-muted-foreground">Loading tasks...</div>
                     )}
 
-                    {isAuth && !tasksLoading && tasks.length === 0 && (
+                    {!tasksLoading && tasks.length === 0 && (
                       <div className="text-sm text-muted-foreground">No upcoming tasks. Add one to get started.</div>
                     )}
 
-                    {isAuth && !tasksLoading && tasks.map((task: any) => (
+                    {!tasksLoading && tasks.map((task: any) => (
                       <div
                         key={task.id}
                         className="flex items-start gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
@@ -383,49 +427,23 @@ const Dashboard = () => {
                           <p className="text-sm font-medium">{task.title}</p>
                           <p className="text-xs text-muted-foreground">{task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No date'}</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="ghost" onClick={() => updateTaskMutation.mutate({ id: task.id, payload: { completed: !task.completed } })}>
-                            {task.completed ? 'Undo' : 'Done'}
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => deleteTaskMutation.mutate(task.id)}>
-                            Delete
-                          </Button>
-                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => deleteTaskMutation.mutate(task.id)}
+                        >
+                          ✓
+                        </Button>
                       </div>
                     ))}
                   </div>
                 </CardContent>
               </Card>
-
-              {/* AI Insights */}
-              {isAuth && (
-                <Card className="bg-gradient-hero text-primary-foreground overflow-hidden">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
-                        <Leaf className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="font-display font-bold">AI Insight</h3>
-                        <p className="text-primary-foreground/70 text-sm">Smart recommendation</p>
-                      </div>
-                    </div>
-                    <p className="text-primary-foreground/90 text-sm leading-relaxed mb-4">
-                      Based on current weather patterns and market trends, consider harvesting your tomatoes within the next 3 days for optimal pricing.
-                    </p>
-                    <Button variant="golden" size="sm">
-                      Learn More
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
             </div>
           </div>
         </div>
       </main>
       <Footer />
-      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
-      <Chatbot userType="farmer" location="Kenya" />
     </div>
   );
 };
