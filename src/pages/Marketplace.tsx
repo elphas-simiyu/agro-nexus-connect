@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { Chatbot } from "@/components/Chatbot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,42 +10,71 @@ import {
   MapPin, 
   Star, 
   ShoppingCart, 
-  Filter, 
   Grid3X3, 
   List,
   SlidersHorizontal,
-  ChevronDown
+  ChevronDown,
+  Plus,
+  Minus,
+  Check
 } from "lucide-react";
-
 import { useQuery } from "@tanstack/react-query";
+import { useCart } from "@/contexts/CartContext";
+import { toast } from "sonner";
 import productsService, { Product } from "@/services/products";
 
 const categories = [
-  { id: "all", name: "All Products", count: 0 },
-  { id: "vegetables", name: "Vegetables", count: 0 },
-  { id: "fruits", name: "Fruits", count: 0 },
-  { id: "grains", name: "Grains", count: 0 },
-  { id: "dairy", name: "Dairy", count: 0 },
-  { id: "poultry", name: "Poultry", count: 0 },
+  { id: "all", name: "All Products" },
+  { id: "vegetables", name: "Vegetables" },
+  { id: "fruits", name: "Fruits" },
+  { id: "grains", name: "Grains" },
+  { id: "dairy", name: "Dairy" },
+  { id: "poultry", name: "Poultry" },
 ];
 
 const Marketplace = () => {
+  const navigate = useNavigate();
+  const { addItem, isInCart, getItemQuantity } = useCart();
   const [activeCategory, setActiveCategory] = useState("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
+  const [priceRange, setPriceRange] = useState({ min: "", max: "" });
+  const [organicOnly, setOrganicOnly] = useState(false);
 
-  const { data: products = [], isLoading } = useQuery<Product[]>({
+  const { data: products = [], isLoading } = useQuery({
     queryKey: ["products", activeCategory, searchQuery],
-    queryFn: () => productsService.getProducts({ category: activeCategory === "all" ? undefined : activeCategory, q: searchQuery }),
-    keepPreviousData: true,
+    queryFn: () => productsService.getProducts({ 
+      category: activeCategory === "all" ? undefined : activeCategory, 
+      q: searchQuery || undefined 
+    }),
   });
 
-  const filteredProducts = products.filter((product) => {
+  const filteredProducts = Array.isArray(products) ? products.filter((product: Product) => {
     const matchesCategory = activeCategory === "all" || (product.category || "").toLowerCase() === activeCategory;
-    const matchesSearch = searchQuery === "" || product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch = searchQuery === "" || 
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (product.farmer || "").toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+    const matchesPrice = 
+      (!priceRange.min || product.price >= Number(priceRange.min)) &&
+      (!priceRange.max || product.price <= Number(priceRange.max));
+    const matchesOrganic = !organicOnly || product.organic;
+    return matchesCategory && matchesSearch && matchesPrice && matchesOrganic;
+  }) : [];
+
+  const handleAddToCart = (product: Product) => {
+    addItem({
+      productId: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: 1,
+      image: product.image || "",
+      farmer: product.farmer,
+      farmerId: product.farmerId || "",
+      unit: product.unit,
+      available: product.available,
+    });
+    toast.success(`${product.name} added to cart`);
+  };
 
   return (
     <div className="min-h-screen">
@@ -88,9 +117,6 @@ const Marketplace = () => {
                         }`}
                       >
                         <span>{category.name}</span>
-                        <span className={activeCategory === category.id ? "text-primary-foreground/70" : "text-muted-foreground"}>
-                          {category.count}
-                        </span>
                       </button>
                     ))}
                   </div>
@@ -98,17 +124,21 @@ const Marketplace = () => {
 
                 {/* Price Range */}
                 <div className="mb-6">
-                  <h4 className="font-semibold mb-3 text-sm text-muted-foreground">Price Range</h4>
+                  <h4 className="font-semibold mb-3 text-sm text-muted-foreground">Price Range (KES)</h4>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
                       placeholder="Min"
+                      value={priceRange.min}
+                      onChange={(e) => setPriceRange({ ...priceRange, min: e.target.value })}
                       className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm"
                     />
                     <span className="text-muted-foreground">-</span>
                     <input
                       type="number"
                       placeholder="Max"
+                      value={priceRange.max}
+                      onChange={(e) => setPriceRange({ ...priceRange, max: e.target.value })}
                       className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm"
                     />
                   </div>
@@ -117,7 +147,12 @@ const Marketplace = () => {
                 {/* Organic Filter */}
                 <div>
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" className="w-4 h-4 rounded border-border" />
+                    <input 
+                      type="checkbox" 
+                      checked={organicOnly}
+                      onChange={(e) => setOrganicOnly(e.target.checked)}
+                      className="w-4 h-4 rounded border-border" 
+                    />
                     <span className="text-sm">Organic Only</span>
                   </label>
                 </div>
@@ -145,12 +180,6 @@ const Marketplace = () => {
                     />
                   </div>
 
-                  {/* Sort */}
-                  <Button variant="outline" size="sm" className="hidden sm:flex">
-                    Sort by
-                    <ChevronDown className="w-4 h-4 ml-1" />
-                  </Button>
-
                   {/* View Mode */}
                   <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
                     <button
@@ -173,14 +202,31 @@ const Marketplace = () => {
                 </div>
               </div>
 
+              {/* Loading State */}
+              {isLoading && (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                  <p className="mt-4 text-muted-foreground">Loading products...</p>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!isLoading && filteredProducts.length === 0 && (
+                <div className="text-center py-12">
+                  <ShoppingCart className="w-16 h-16 mx-auto text-muted-foreground opacity-50 mb-4" />
+                  <h3 className="font-display font-bold text-xl mb-2">No products found</h3>
+                  <p className="text-muted-foreground">Try adjusting your filters or search query</p>
+                </div>
+              )}
+
               {/* Products Grid */}
               <div className={`grid gap-6 ${viewMode === "grid" ? "sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
-                {filteredProducts.map((product) => (
+                {filteredProducts.map((product: Product) => (
                   <Card key={product.id} variant="elevated" className="group overflow-hidden">
                     <div className={`${viewMode === "list" ? "flex" : ""}`}>
                       <div className={`relative overflow-hidden ${viewMode === "list" ? "w-48 shrink-0" : "aspect-[4/3]"}`}>
                         <img
-                          src={product.image}
+                          src={product.image || "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400&h=300&fit=crop"}
                           alt={product.name}
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         />
@@ -202,9 +248,9 @@ const Marketplace = () => {
                         </p>
                         <div className="flex items-center gap-1 mb-3">
                           <Star className="w-4 h-4 fill-harvest text-harvest" />
-                          <span className="font-semibold">{product.rating}</span>
+                          <span className="font-semibold">{product.rating || 0}</span>
                           <span className="text-muted-foreground text-sm">
-                            ({product.reviews} reviews)
+                            ({product.reviews || 0} reviews)
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -214,10 +260,17 @@ const Marketplace = () => {
                             </span>
                             <span className="text-muted-foreground">/{product.unit}</span>
                           </div>
-                          <Button size="sm" variant="hero">
-                            <ShoppingCart className="w-4 h-4" />
-                            Add
-                          </Button>
+                          {isInCart(product.id) ? (
+                            <Button size="sm" variant="outline" onClick={() => navigate("/cart")}>
+                              <Check className="w-4 h-4 mr-1" />
+                              In Cart ({getItemQuantity(product.id)})
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="hero" onClick={() => handleAddToCart(product)}>
+                              <ShoppingCart className="w-4 h-4 mr-1" />
+                              Add
+                            </Button>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground mt-2">
                           {product.available} available
@@ -227,30 +280,11 @@ const Marketplace = () => {
                   </Card>
                 ))}
               </div>
-
-              {/* Pagination */}
-              <div className="flex justify-center mt-12">
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">Previous</Button>
-                  {[1, 2, 3, 4, 5].map((page) => (
-                    <Button
-                      key={page}
-                      variant={page === 1 ? "default" : "ghost"}
-                      size="sm"
-                      className="w-10"
-                    >
-                      {page}
-                    </Button>
-                  ))}
-                  <Button variant="outline" size="sm">Next</Button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
       </main>
       <Footer />
-      <Chatbot userType="buyer" location="Kenya" />
     </div>
   );
 };
